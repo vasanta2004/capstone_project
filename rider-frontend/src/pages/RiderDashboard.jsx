@@ -33,8 +33,8 @@ const RiderDashboard = () => {
   const [searching, setSearching] = useState(false);
   const [rideRequested, setRideRequested] = useState(false);
   const [matchedDriver, setMatchedDriver] = useState(null);
-  const [proposedDriver, setProposedDriver] = useState(null);
   const [selectedType, setSelectedType] = useState('RideX');
+  const [rideStatus, setRideStatus] = useState('none');
 
   // Coordinates state
   const [pickupCoords, setPickupCoords] = useState([75.1489, 15.3506]);
@@ -44,31 +44,24 @@ const RiderDashboard = () => {
   useEffect(() => {
     if (!socket) return;
 
-    socket.on('driver-proposed-ride', (data) => {
-      console.log('Driver proposed ride:', data);
-      setSearching(false);
-      setProposedDriver(data);
-    });
-
-    socket.on('ride-search-resumed', (data) => {
-      console.log('Ride search resumed:', data);
-      setProposedDriver(null);
-      setSearching(true);
-    });
-
     socket.on('ride-accepted', (data) => {
       console.log('Ride accepted by driver:', data);
       setSearching(false);
-      setProposedDriver(null);
       setMatchedDriver(data.driver);
+      setRideStatus('accepted');
+    });
+
+    socket.on('ride-started', (data) => {
+      console.log('Ride started:', data);
+      setRideStatus('started');
     });
 
     socket.on('ride-rejected', (data) => {
       console.log('Ride rejected:', data);
       setSearching(false);
       setRideRequested(false);
-      setProposedDriver(null);
       setMatchedDriver(null);
+      setRideStatus('none');
       alert(data.message || 'No drivers accepted your booking request.');
     });
 
@@ -77,14 +70,13 @@ const RiderDashboard = () => {
       alert('You have arrived at your destination! Thank you for riding with RideX.');
       setSearching(false);
       setRideRequested(false);
-      setProposedDriver(null);
       setMatchedDriver(null);
+      setRideStatus('completed');
     });
 
     return () => {
-      socket.off('driver-proposed-ride');
-      socket.off('ride-search-resumed');
       socket.off('ride-accepted');
+      socket.off('ride-started');
       socket.off('ride-rejected');
       socket.off('ride-completed');
     };
@@ -164,6 +156,7 @@ const RiderDashboard = () => {
     setSearching(true);
     setRideRequested(true);
     setMatchedDriver(null);
+    setRideStatus('searching');
 
     const calculatedFare = calculatePrice(rideTypes.find(t => t.id === selectedType).base);
 
@@ -185,23 +178,7 @@ const RiderDashboard = () => {
     setSearching(false);
     setRideRequested(false);
     setMatchedDriver(null);
-    setProposedDriver(null);
-  };
-
-  const handleAcceptProposedDriver = () => {
-    if (!proposedDriver) return;
-    confirmRide({
-      rideId: proposedDriver.rideId,
-      driverId: proposedDriver.driver.driverId
-    });
-  };
-
-  const handleDeclineProposedDriver = () => {
-    if (!proposedDriver) return;
-    declineDriver({
-      rideId: proposedDriver.rideId,
-      driverId: proposedDriver.driver.driverId
-    });
+    setRideStatus('none');
   };
 
   return (
@@ -227,7 +204,25 @@ const RiderDashboard = () => {
                 >
                   <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-4 py-2.5 rounded-full text-xs font-semibold self-start border border-emerald-500/20">
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
-                    Ride Confirmed • Arriving in 3 mins
+                    {rideStatus === 'accepted' ? 'Ride Confirmed • Arriving in 3 mins' : 'Ride In Progress • Heading to destination'}
+                  </div>
+
+                  {/* Progress Tracker */}
+                  <div className="flex items-center justify-between mt-2 mb-4 px-2">
+                    <div className="flex flex-col items-center gap-2 relative z-10">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${rideStatus === 'accepted' || rideStatus === 'started' ? 'bg-accent text-black shadow-[0_0_10px_rgba(212,255,0,0.5)]' : 'bg-surface-elevated text-gray-400'}`}>✓</div>
+                      <span className={`text-[10px] font-bold uppercase ${rideStatus === 'accepted' || rideStatus === 'started' ? 'text-white' : 'text-gray-500'}`}>Accepted</span>
+                    </div>
+                    <div className={`flex-1 h-1 mx-2 rounded-full ${rideStatus === 'started' ? 'bg-accent' : 'bg-surface-elevated'}`}></div>
+                    <div className="flex flex-col items-center gap-2 relative z-10">
+                      <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs ${rideStatus === 'started' ? 'bg-accent text-black shadow-[0_0_10px_rgba(212,255,0,0.5)]' : 'bg-surface-elevated text-gray-400'}`}>{rideStatus === 'started' ? '✓' : '2'}</div>
+                      <span className={`text-[10px] font-bold uppercase ${rideStatus === 'started' ? 'text-white' : 'text-gray-500'}`}>In Progress</span>
+                    </div>
+                    <div className="flex-1 h-1 mx-2 rounded-full bg-surface-elevated"></div>
+                    <div className="flex flex-col items-center gap-2 relative z-10">
+                      <div className="w-6 h-6 rounded-full flex items-center justify-center text-xs bg-surface-elevated text-gray-400">3</div>
+                      <span className="text-[10px] font-bold uppercase text-gray-500">Completed</span>
+                    </div>
                   </div>
                   
                   <h2 className="text-xl font-heading font-extrabold text-white">Meet your driver</h2>
@@ -289,74 +284,8 @@ const RiderDashboard = () => {
                 </motion.div>
               )}
 
-              {/* STATE 1.5: PROPOSED DRIVER FOUND (PENDING CONFIRMATION) */}
-              {proposedDriver && !matchedDriver && (
-                <motion.div
-                  key="proposed"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex flex-col gap-5 py-2"
-                >
-                  <div className="flex items-center gap-2 bg-yellow-500/10 text-yellow-400 px-4 py-2.5 rounded-full text-xs font-semibold self-start border border-yellow-500/20 animate-pulse">
-                    <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
-                    Driver Found • Awaiting Your Acceptance
-                  </div>
-                  
-                  <h2 className="text-xl font-heading font-extrabold text-white">Accept driver's offer?</h2>
-
-                  {/* Driver luxury card */}
-                  <div className="bg-white/[0.02] border border-white/5 p-5 rounded-2xl flex flex-col gap-4 shadow-sm">
-                    <div className="flex justify-between items-center">
-                      <div>
-                        <h3 className="font-bold text-lg text-white">{proposedDriver.driver.name}</h3>
-                        <p className="text-xs text-gray-400 mt-0.5">{proposedDriver.driver.vehicle}</p>
-                      </div>
-                      <div className="text-right">
-                        <span className="inline-block bg-white/10 text-white px-2.5 py-1 rounded-lg text-xs font-bold">
-                          {proposedDriver.driver.rating}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex justify-between items-center border-t border-white/5 pt-3">
-                      <div>
-                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">License Plate</span>
-                        <span className="inline-block bg-yellow-400 text-black border-2 border-black font-mono font-extrabold px-3 py-0.5 rounded text-sm shadow-sm tracking-wide mt-1">
-                          {proposedDriver.driver.plate}
-                        </span>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider block">Contact</span>
-                        <span className="text-xs font-semibold text-accent mt-1 block">
-                          {proposedDriver.driver.phone}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Accept/Decline action buttons */}
-                  <div className="flex gap-4 mt-2">
-                    <Button 
-                      onClick={handleDeclineProposedDriver} 
-                      className="flex-1 py-3.5 text-sm" 
-                      variant="secondary"
-                    >
-                      Decline
-                    </Button>
-                    <Button 
-                      onClick={handleAcceptProposedDriver} 
-                      className="flex-1 py-3.5 text-sm font-semibold" 
-                      variant="accent"
-                    >
-                      Accept
-                    </Button>
-                  </div>
-                </motion.div>
-              )}
-
               {/* STATE 2: SEARCHING & RADAR MATCHING */}
-              {searching && !matchedDriver && !proposedDriver && (
+              {searching && !matchedDriver && (
                 <motion.div
                   key="searching"
                   initial={{ opacity: 0 }}

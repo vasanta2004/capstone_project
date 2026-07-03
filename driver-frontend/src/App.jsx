@@ -4,8 +4,10 @@ import AuthLayout from './layouts/AuthLayout';
 
 import LandingPage from './pages/LandingPage';
 import DriverDashboard from './pages/DriverDashboard';
-import AdminDashboard from './pages/AdminDashboard';
+import Login from './pages/Login';
+import Register from './pages/Register';
 
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
@@ -19,8 +21,16 @@ function App() {
       {/* Main Application Routes */}
       <Route element={<MainLayout />}>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/driver/*" element={<DriverDashboard />} />
-        <Route path="/admin/*" element={<AdminDashboard />} />
+        
+        {/* Protected Role-Based Routes */}
+        <Route 
+          path="/driver/*" 
+          element={
+            <ProtectedRoute allowedRoles={['driver']}>
+              <DriverDashboard />
+            </ProtectedRoute>
+          } 
+        />
       </Route>
     </Routes>
   );

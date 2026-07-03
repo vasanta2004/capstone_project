@@ -11,7 +11,7 @@ import { loginUserAPI, loginDriverAPI } from '../services/api';
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState('rider'); // 'rider', 'driver', 'admin'
+  const role = 'rider';
   const { loading, error } = useSelector((state) => state.auth);
 
   const dispatch = useDispatch();
@@ -23,27 +23,13 @@ const Login = () => {
 
     try {
       let res;
-      // Handle Admin bypass/routing or call matching API
-      if (role === 'driver') {
-        res = await loginDriverAPI({ email, password });
-      } else {
-        res = await loginUserAPI({ email, password });
-      }
+      res = await loginUserAPI({ email, password });
       
       dispatch(loginSuccess(res.data));
-      
-      // Redirect based on role
-      if (res.data.role === 'driver') {
-        navigate('/driver');
-      } else if (res.data.role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/rider');
-      }
+      navigate('/rider');
     } catch (err) {
       console.warn("Backend login failed or offline. Simulating robust Developer Sandbox fallback.", err);
       
-      // Standalone Developer Fallback: Let's automatically approve the login for smooth demonstration
       let mockUser = {
         _id: 'mock_user_123',
         name: email.split('@')[0] || 'Demo Guest',
@@ -53,21 +39,8 @@ const Login = () => {
         token: 'mock_jwt_token_sandbox'
       };
 
-      // Special check: if they login with admin role, give admin dashboard
-      if (email.includes('admin')) {
-        mockUser.role = 'admin';
-      }
-
       dispatch(loginSuccess(mockUser));
-      
-      // Direct navigation
-      if (mockUser.role === 'driver') {
-        navigate('/driver');
-      } else if (mockUser.role === 'admin') {
-        navigate('/admin');
-      } else {
-        navigate('/rider');
-      }
+      navigate('/rider');
     }
   };
 
@@ -80,31 +53,7 @@ const Login = () => {
       <Card variant="bento" className="w-full" glow>
         <div className="mb-8">
           <p className="text-accent text-[10px] font-bold uppercase tracking-[0.3em] mb-2">// Sign in</p>
-          <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight">Welcome Back</h2>
-        </div>
-
-        <div className="flex border border-white/10 mb-8">
-          <button 
-            type="button"
-            className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${role === 'rider' ? 'bg-accent text-black' : 'text-text-secondary hover:text-white bg-surface-elevated'}`}
-            onClick={() => setRole('rider')}
-          >
-            Rider
-          </button>
-          <button 
-            type="button"
-            className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest transition-all border-x border-white/10 ${role === 'driver' ? 'bg-violet text-white' : 'text-text-secondary hover:text-white bg-surface-elevated'}`}
-            onClick={() => setRole('driver')}
-          >
-            Driver
-          </button>
-          <button 
-            type="button"
-            className={`flex-1 py-3 text-[10px] font-bold uppercase tracking-widest transition-all ${role === 'admin' ? 'bg-white text-black' : 'text-text-secondary hover:text-white bg-surface-elevated'}`}
-            onClick={() => setRole('admin')}
-          >
-            Admin
-          </button>
+          <h2 className="text-3xl font-heading font-extrabold uppercase tracking-tight">Rider Portal</h2>
         </div>
 
         {error && (

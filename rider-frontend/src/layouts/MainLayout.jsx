@@ -84,12 +84,7 @@ const MainLayout = () => {
                 RideX
               </span>
             </Link>
-            
-            <div className="hidden md:flex items-center gap-1 text-[12px] font-medium tracking-wide">
-              <Link to="/rider" className="px-4 py-2 text-text-secondary hover:text-white transition-colors rounded-full hover:bg-white/5">Ride</Link>
-              <Link to="/driver" className="px-4 py-2 text-text-secondary hover:text-white transition-colors rounded-full hover:bg-white/5">Drive</Link>
-              <Link to="/admin" className="px-4 py-2 text-text-secondary hover:text-white transition-colors rounded-full hover:bg-white/5">Admin</Link>
-            </div>
+            {/* Removed redundant static links, users only see their authorized dashboard button on the right */}
           </div>
 
           <div className="flex gap-4 items-center">

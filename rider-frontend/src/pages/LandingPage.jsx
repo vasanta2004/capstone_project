@@ -21,18 +21,11 @@ const LandingPage = () => {
 
   const portals = [
     {
-      to: '/login?role=rider',
-      title: 'RIDER',
-      subtitle: 'Book a ride. Go anywhere.',
+      to: '/login',
+      title: 'BOOK A RIDE',
+      subtitle: 'Go anywhere, anytime.',
       desc: 'Experience seamless mobility across the city with real-time tracking and premium comfort.',
       image: 'https://images.unsplash.com/photo-1449965408869-eaa3f722e40d?q=80&w=2070&auto=format&fit=crop',
-    },
-    {
-      to: '/login?role=driver',
-      title: 'DRIVER',
-      subtitle: 'Drive with us. Earn on your terms.',
-      desc: 'Join our fleet of professional drivers. Flexible hours, instant payouts, and full control.',
-      image: 'https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?q=80&w=2070&auto=format&fit=crop',
     }
   ];
 

@@ -7,8 +7,7 @@ import RiderDashboard from './pages/RiderDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
-import AdminDashboard from './pages/AdminDashboard';
-
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   return (
@@ -22,8 +21,16 @@ function App() {
       {/* Main Application Routes */}
       <Route element={<MainLayout />}>
         <Route path="/" element={<LandingPage />} />
-        <Route path="/rider/*" element={<RiderDashboard />} />
-        <Route path="/admin/*" element={<AdminDashboard />} />
+        
+        {/* Protected Role-Based Routes */}
+        <Route 
+          path="/rider/*" 
+          element={
+            <ProtectedRoute allowedRoles={['rider']}>
+              <RiderDashboard />
+            </ProtectedRoute>
+          } 
+        />
       </Route>
     </Routes>
   );

@@ -3,12 +3,9 @@ import MainLayout from './layouts/MainLayout';
 import AuthLayout from './layouts/AuthLayout';
 
 import LandingPage from './pages/LandingPage';
-import RiderDashboard from './pages/RiderDashboard';
+import AdminDashboard from './pages/AdminDashboard';
 import Login from './pages/Login';
 import Register from './pages/Register';
-
-import DriverDashboard from './pages/DriverDashboard';
-import AdminDashboard from './pages/AdminDashboard';
 
 import ProtectedRoute from './components/ProtectedRoute';
 
@@ -26,24 +23,6 @@ function App() {
         <Route path="/" element={<LandingPage />} />
         
         {/* Protected Role-Based Routes */}
-        <Route 
-          path="/rider/*" 
-          element={
-            <ProtectedRoute allowedRoles={['rider']}>
-              <RiderDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        
-        <Route 
-          path="/driver/*" 
-          element={
-            <ProtectedRoute allowedRoles={['driver']}>
-              <DriverDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        
         <Route 
           path="/admin/*" 
           element={

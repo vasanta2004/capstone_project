@@ -9,12 +9,11 @@ import { FiTrendingUp, FiClock, FiMap, FiCheckCircle } from 'react-icons/fi';
 
 const DriverDashboard = () => {
   const { user } = useSelector((state) => state.auth);
-  const { acceptRide, rejectRide, completeRide, socket } = useSocket();
+  const { acceptRide, rejectRide, completeRide, startRide, socket } = useSocket();
 
   const [isOnline, setIsOnline] = useState(false);
-  const [rideRequest, setRideRequest] = useState(null);
+  const [rideRequests, setRideRequests] = useState([]);
   const [activeRide, setActiveRide] = useState(null);
-  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [earnings, setEarnings] = useState({
     today: 184.50,
     week: 924.80,
@@ -24,52 +23,44 @@ const DriverDashboard = () => {
   // Listen for real-time dispatches from riders
   useEffect(() => {
     if (!socket || !isOnline) {
-      setRideRequest(null);
-      setAwaitingConfirmation(false);
+      setRideRequests([]);
       return;
     }
 
     socket.on('ride-dispatch', (data) => {
       console.log('Received dispatch offer:', data);
-      setRideRequest(data);
+      setRideRequests(prev => {
+        // Prevent duplicates
+        if (prev.find(r => r.id === data.id)) return prev;
+        return [...prev, data];
+      });
     });
 
     socket.on('ride-withdrawn', (data) => {
       console.log('Ride withdrawn by system:', data);
-      if (rideRequest && rideRequest.id === data.rideId && !awaitingConfirmation) {
-        setRideRequest(null);
-      }
+      setRideRequests(prev => prev.filter(r => r.id !== data.rideId));
     });
 
     socket.on('ride-confirmed-by-rider', (data) => {
-      console.log('Ride confirmed by rider:', data);
-      setAwaitingConfirmation(false);
-      setActiveRide(data.ride);
-      setRideRequest(null);
-    });
-
-    socket.on('ride-declined-by-rider', (data) => {
-      console.log('Ride declined by rider:', data);
-      setAwaitingConfirmation(false);
-      setRideRequest(null);
-      alert(data.message || 'The passenger has declined your acceptance.');
+      console.log('Ride confirmed by system (auto-accepted):', data);
+      setActiveRide({ ...data.ride, status: 'accepted' });
+      setRideRequests([]);
     });
 
     return () => {
       socket.off('ride-dispatch');
       socket.off('ride-withdrawn');
       socket.off('ride-confirmed-by-rider');
-      socket.off('ride-declined-by-rider');
     };
-  }, [socket, isOnline, rideRequest, awaitingConfirmation]);
+  }, [socket, isOnline]);
 
-  const handleAcceptRide = () => {
-    if (!rideRequest) return;
+  const handleAcceptRide = (request) => {
+    if (!request) return;
 
     // Send accept ride event to rider via socket server
     acceptRide({
-      rideId: rideRequest.id,
-      riderId: rideRequest.riderId,
+      rideId: request.id,
+      riderId: request.riderId,
       driverId: user?._id || user?.id || 'guest_driver',
       driverName: user?.name || 'Alexander Sterling',
       vehicle: user?.vehicle || 'Tesla Model S (White)',
@@ -77,20 +68,29 @@ const DriverDashboard = () => {
       rating: user?.rating || '4.95 ⭐',
       phone: user?.phone || '+91 98765 43210'
     });
-
-    setAwaitingConfirmation(true);
   };
 
-  const handleRejectRide = () => {
-    if (!rideRequest) return;
+  const handleRejectRide = (request) => {
+    if (!request) return;
 
     // Send reject ride event to rider via socket server
     rejectRide({
-      rideId: rideRequest.id,
-      riderId: rideRequest.riderId
+      rideId: request.id,
+      riderId: request.riderId
     });
 
-    setRideRequest(null);
+    setRideRequests(prev => prev.filter(r => r.id !== request.id));
+  };
+
+  const handleStartRide = () => {
+    if (!activeRide) return;
+
+    startRide({
+      rideId: activeRide.id,
+      riderId: activeRide.riderId
+    });
+
+    setActiveRide(prev => ({ ...prev, status: 'started' }));
   };
 
   const handleCompleteRide = () => {
@@ -126,9 +126,8 @@ const DriverDashboard = () => {
               onClick={() => {
                 setIsOnline(!isOnline);
                 if (isOnline) {
-                  setRideRequest(null);
+                  setRideRequests([]);
                   setActiveRide(null);
-                  setAwaitingConfirmation(false);
                 }
               }}
               className={`relative inline-flex h-8 w-16 items-center rounded-full transition-all duration-300 focus:outline-none ${isOnline ? 'bg-success' : 'bg-white/10'}`}
@@ -166,7 +165,7 @@ const DriverDashboard = () => {
               </motion.div>
             )}
 
-            {isOnline && !rideRequest && !activeRide && !awaitingConfirmation && (
+            {isOnline && rideRequests.length === 0 && !activeRide && (
               <motion.div
                 key="scanning"
                 initial={{ opacity: 0, y: 10 }}
@@ -183,92 +182,57 @@ const DriverDashboard = () => {
               </motion.div>
             )}
 
-            {isOnline && awaitingConfirmation && !activeRide && (
+            {rideRequests.length > 0 && !activeRide && (
               <motion.div
-                key="awaiting-confirmation"
+                key="requests-feed"
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 0.95 }}
-                className="absolute inset-0"
+                className="absolute inset-0 overflow-y-auto pr-2 pb-2 space-y-4 custom-scrollbar"
               >
-                <Card className="h-full border border-yellow-500/20 bg-gradient-to-b from-surface-dark to-yellow-950/20 flex flex-col justify-between p-6">
-                  <div>
-                    <span className="inline-flex px-3 py-1 bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 rounded-full text-xs font-semibold uppercase tracking-wider mb-4 animate-pulse">
-                      Awaiting Rider Confirm
-                    </span>
-                    <h3 className="text-2xl font-heading font-bold text-white mb-2">{rideRequest?.riderName}</h3>
-                    <p className="text-xs text-text-secondary font-medium">Waiting for passenger to accept your offer...</p>
-                    
-                    <div className="flex flex-col gap-3 mt-6">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2.5 h-2.5 rounded-full bg-success"></div>
-                        <p className="text-sm font-semibold text-white truncate max-w-[220px]">{rideRequest?.pickup}</p>
-                      </div>
-                      <div className="w-0.5 h-4 bg-white/20 ml-1"></div>
-                      <div className="flex items-center gap-3">
-                        <div className="w-2.5 h-2.5 rounded bg-error"></div>
-                        <p className="text-sm font-semibold text-white truncate max-w-[220px]">{rideRequest?.drop}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-center justify-center py-4">
-                    <svg className="w-8 h-8 text-yellow-400 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span className="text-[11px] text-gray-400 mt-2 font-medium">Connecting match...</span>
-                  </div>
-                </Card>
-              </motion.div>
-            )}
-
-            {rideRequest && !awaitingConfirmation && (
-              <motion.div
-                key="request"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                className="absolute inset-0"
-              >
-                <Card className="h-full border border-accent/20 bg-gradient-to-b from-surface-dark to-accent/5 flex flex-col justify-between">
-                  <div>
-                    <span className="inline-flex px-3 py-1 bg-accent/10 text-accent border border-accent/20 rounded-full text-xs font-semibold uppercase tracking-wider mb-4">
-                      Dispatch Offer
-                    </span>
-                    <h3 className="text-2xl font-heading font-bold text-white mb-4">{rideRequest.riderName}</h3>
-                    <div className="flex flex-col gap-3">
-                      <div>
-                        <p className="text-[10px] text-text-secondary uppercase">Pickup</p>
-                        <p className="text-sm font-semibold text-white mt-0.5">{rideRequest.pickup}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] text-text-secondary uppercase">Destination</p>
-                        <p className="text-sm font-semibold text-white mt-0.5">{rideRequest.drop}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-between items-center py-4 border-y border-white/5 my-4">
+                {rideRequests.map(request => (
+                  <Card key={request.id} className="w-full border border-accent/20 bg-gradient-to-b from-surface-dark to-accent/5 flex flex-col justify-between p-6 rounded-2xl">
                     <div>
-                      <p className="text-[10px] text-text-secondary uppercase">Estimated Fare</p>
-                      <p className="text-2xl font-heading font-bold text-success mt-0.5">₹{rideRequest.fare}</p>
+                      <div className="flex justify-between items-center mb-4">
+                        <span className="inline-flex px-3 py-1 bg-accent/10 text-accent border border-accent/20 rounded-full text-[10px] font-bold uppercase tracking-wider">
+                          Dispatch Offer
+                        </span>
+                        <span className="text-[10px] text-text-secondary uppercase tracking-widest">{request.vehicleType}</span>
+                      </div>
+                      <h3 className="text-xl font-heading font-bold text-white mb-4">{request.riderName}</h3>
+                      <div className="flex flex-col gap-3">
+                        <div>
+                          <p className="text-[10px] text-text-secondary uppercase">Pickup</p>
+                          <p className="text-sm font-semibold text-white mt-0.5">{request.pickup}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] text-text-secondary uppercase">Destination</p>
+                          <p className="text-sm font-semibold text-white mt-0.5">{request.drop}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-[10px] text-text-secondary uppercase">Distance</p>
-                      <p className="text-lg font-semibold text-white mt-0.5">{rideRequest.distance}</p>
-                    </div>
-                  </div>
 
-                  <div className="flex gap-4">
-                    <Button variant="secondary" onClick={handleRejectRide} className="flex-1 py-3 text-sm">
-                      Decline
-                    </Button>
-                    <Button variant="accent" onClick={handleAcceptRide} className="flex-1 py-3 text-sm font-semibold">
-                      Accept Ride
-                    </Button>
-                  </div>
-                </Card>
+                    <div className="flex justify-between items-center py-4 border-y border-white/5 my-4">
+                      <div>
+                        <p className="text-[10px] text-text-secondary uppercase">Estimated Fare</p>
+                        <p className="text-xl font-heading font-bold text-success mt-0.5">₹{request.fare}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-text-secondary uppercase">Distance</p>
+                        <p className="text-base font-semibold text-white mt-0.5">{request.distance}</p>
+                      </div>
+                    </div>
+
+                    <div className="flex gap-4 mt-2">
+                      <Button variant="secondary" onClick={() => handleRejectRide(request)} className="flex-1 py-3 text-xs">
+                        Decline
+                      </Button>
+                      <Button variant="accent" onClick={() => handleAcceptRide(request)} className="flex-1 py-3 text-xs font-semibold">
+                        Accept Ride
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
               </motion.div>
             )}
 
@@ -301,13 +265,23 @@ const DriverDashboard = () => {
                     </div>
                   </div>
 
-                  <Button 
-                    variant="primary" 
-                    onClick={handleCompleteRide} 
-                    className="w-full py-4 font-bold flex items-center justify-center gap-2 hover:bg-emerald-500 hover:text-white"
-                  >
-                    <FiCheckCircle /> Complete Charter
-                  </Button>
+                  {activeRide.status !== 'started' ? (
+                    <Button 
+                      variant="primary" 
+                      onClick={handleStartRide} 
+                      className="w-full py-4 font-bold flex items-center justify-center gap-2 hover:bg-emerald-500 hover:text-white"
+                    >
+                      <FiCheckCircle /> Start Ride
+                    </Button>
+                  ) : (
+                    <Button 
+                      variant="primary" 
+                      onClick={handleCompleteRide} 
+                      className="w-full py-4 font-bold flex items-center justify-center gap-2 hover:bg-emerald-500 hover:text-white"
+                    >
+                      <FiCheckCircle /> Complete Charter
+                    </Button>
+                  )}
                 </Card>
               </motion.div>
             )}
@@ -318,8 +292,8 @@ const DriverDashboard = () => {
       {/* Map Screen */}
       <div className="w-full md:w-2/3 h-full">
         <MapComponent 
-          pickup={activeRide ? activeRide.pickupCoords : (rideRequest ? rideRequest.pickupCoords : null)} 
-          drop={activeRide ? activeRide.dropCoords : (rideRequest ? rideRequest.dropCoords : null)} 
+          pickup={activeRide ? activeRide.pickupCoords : (rideRequests.length > 0 ? rideRequests[0].pickupCoords : null)} 
+          drop={activeRide ? activeRide.dropCoords : (rideRequests.length > 0 ? rideRequests[0].dropCoords : null)} 
         />
       </div>
     </div>

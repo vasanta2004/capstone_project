@@ -72,40 +72,7 @@ const initializeSocket = (server) => {
                 }
             }
 
-            // --- INSTANT DEMO MATCHING ---
-            // The user wants to bypass "Finding your ride..." entirely.
-            // We will instantly assign a mock driver and accept the ride.
-            setTimeout(() => {
-                const ride = activeRides.get(rideId);
-                if (ride && ride.status === 'searching') {
-                    console.log(`[Instant Demo] Auto-simulating driver acceptance for ride ${rideId}`);
-                    
-                    const mockDriver = {
-                        driverId: 'demo_driver_999',
-                        driverName: 'Ramesh (Demo Driver)',
-                        vehicle: ride.vehicleType === 'RideBlack' ? 'Mercedes S-Class' : 'Toyota Innova (White)',
-                        plate: 'KA 25 M 7890',
-                        rating: '4.9',
-                        phone: '+91 98765 43210'
-                    };
-                    
-                    ride.status = 'accepted';
-                    ride.driver = mockDriver;
-                    activeRides.set(rideId, ride);
 
-                    // Notify specific Rider room that driver is matched and confirmed instantly
-                    socket.emit('ride-accepted', {
-                        rideId,
-                        driver: mockDriver,
-                        pickupCoords: ride.pickupCoords,
-                        dropCoords: ride.dropCoords
-                    });
-
-                    // Notify all other drivers that the ride is withdrawn/taken
-                    io.to('drivers').emit('ride-withdrawn', { rideId });
-                }
-            }, 500); // 500ms delay just for a tiny realistic pause, practically instant.
-            // -----------------------------
         });
 
         // 4. Driver accepts the cab (Fast-Track: First to accept gets the ride instantly)
@@ -183,7 +150,22 @@ const initializeSocket = (server) => {
             }
         });
 
-        // 6. Complete Trip
+        // 6. Start Trip
+        socket.on('start-ride', (data) => {
+            const { rideId, riderId } = data;
+            console.log(`Ride ${rideId} started by driver`);
+
+            const ride = activeRides.get(rideId);
+            if (ride) {
+                ride.status = 'started';
+                activeRides.set(rideId, ride);
+
+                // Notify Rider that trip has started
+                io.to(riderId).emit('ride-started', { rideId });
+            }
+        });
+
+        // 7. Complete Trip
         socket.on('complete-ride', (data) => {
             const { rideId, riderId } = data;
             console.log(`Ride ${rideId} completed successfully`);
